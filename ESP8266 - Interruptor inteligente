@@ -1,0 +1,105 @@
+//INTERRUPTOR INTELIGENTE USANDO ESP8266 (ESP-01S) + RELÊ
+//Permite o acionamento da lâmpada tanto pela rede local quanto pelo interruptor.
+// Alex Afonso dos Santos - 2022
+
+//Incluindo bibliotecas
+#include <ESP8266WiFi.h>
+#include <DNSServer.h>
+#include <ESP8266WebServer.h>
+#include <WiFiManager.h>
+#define LAMP_PIN 2
+#define INT_PIN 0
+WiFiManager wifiManager;
+ESP8266WebServer server(80);
+
+
+int lampState, prevLampState, int_reading, prev_int_reading;
+
+// Página HTML
+const char index_html[] PROGMEM = R"rawliteral(
+
+<!DOCTYPE HTML>
+<html>
+<meta charset="utf8">
+<style>
+body { background-color: #000000; color:#FFFFFF }
+.botao_on{
+  margin: auto; 
+  width: 50%; 
+  padding:10px; 
+  text-align: center;
+  border: 1px solid #ffffff;
+  background-color: #008000;
+  border-radius: 10px;
+  color: white;
+  display: block;
+  text-align: center }
+
+
+a { color: white;font-family: Arial, Helvetica, sans-serif; font-size: 3rem;text-decoration: none; text-align: center}
+</style>
+
+<body>
+<a class="botao_on" href="/lampada"> Lâmpada </a>
+
+</body>
+</html>
+
+)rawliteral";
+
+
+
+
+void setup() {
+    pinMode(0, INPUT);
+    pinMode(2, OUTPUT);
+    prev_int_reading = 0;
+    lampState = 0;
+    Serial.begin(115200);
+    wifiManager.autoConnect("AutoConnectAP");
+    server.on("/", handle_index);
+    server.on("/lampada", handle_lamp);
+    server.begin();
+
+    
+}
+
+void loop() {
+//Lida com as requests realizadas ao servidor
+  server.handleClient();
+
+//Faz a leitura do interruptor
+  int_read();
+  
+//Muda o estado do relê de acordo com o valor da variável lampState
+  if (lampState == 1){
+    digitalWrite(LAMP_PIN, HIGH); 
+  } else {
+    digitalWrite(LAMP_PIN, LOW);
+  };
+
+//Alimenta o Watchdog
+  yield();
+
+}
+
+//Função para enviar a página HTML quando a raiz "/" for acessada.
+void handle_index() {
+  server.send(200, "text/html", index_html);
+}
+
+//Inverte o estado da lâmpada quando o interruptor ou a página web for acionada
+void handle_lamp() {
+  prevLampState = lampState;
+  lampState = !lampState;
+  server.send(200, "text/html", index_html);
+}
+
+//Faz a leitura do interruptor
+void int_read(){
+  int_reading = digitalRead(0);
+  if( int_reading != prev_int_reading){
+    prev_int_reading = int_reading;
+    lampState = !lampState;
+  }
+}
